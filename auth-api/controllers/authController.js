@@ -1,6 +1,9 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS) || 10;
+const jwtExpires = process.env.JWT_EXPIRES_IN || "1h";
+
 
 // REGISTER
 const registerUser = async (req, res) => {
@@ -12,7 +15,8 @@ const registerUser = async (req, res) => {
       return res.status(400).json({ message: "User already exists" });
     }
 
-    const salt = await bcrypt.genSalt(10);
+    const salt = await bcrypt.genSalt(saltRounds);
+
     const hashedPassword = await bcrypt.hash(password, salt);
 
     await User.create({
@@ -45,7 +49,8 @@ const loginUser = async (req, res) => {
     const token = jwt.sign(
       { id: user._id },
       process.env.JWT_SECRET,
-      { expiresIn: "1h" }
+    { expiresIn: jwtExpires }
+
     );
 
     res.json({ token });
