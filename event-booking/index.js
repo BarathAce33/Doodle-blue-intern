@@ -1,6 +1,6 @@
 require('dotenv').config(); // Load environment variables
 const express = require('express'); // Web framework
-const connectDB = require('./config/db'); // Database connection
+const { connectDB } = require('./config/db'); // Database connection
 const authRoutes = require('./routes/auth');
 const eventRoutes = require('./routes/events');
 
@@ -17,6 +17,16 @@ app.get('/', (req, res) => {
 });
 app.use('/api/auth', authRoutes); // Auth endpoints
 app.use('/api/events', eventRoutes); // Event endpoints
+
+// Fallback error handler for JSON errors
+app.use((err, req, res, next) => {
+    console.error('Unhandled Error:', err.message);
+    const statusCode = err.status || 500;
+    res.status(statusCode).json({
+        statusCode,
+        message: err.message || 'Internal Server Error'
+    });
+});
 
 const PORT = process.env.PORT || 5005;
 

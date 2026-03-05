@@ -1,31 +1,29 @@
-const Event = require('../models/Event');
-const Booking = require('../models/Booking');
+const { Event, Booking, User } = require('../models');
 const { ERRORS, DEFAULTS } = require('../config/constants');
 const transporter = require('../config/email');
+const { Op } = require('sequelize');
 
 // Pagination
 exports.getAllEvents = async (req, res) => { // List all events
     try {
-        // Parse query params
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || DEFAULTS.PAGINATION_LIMIT;
-        const skip = (page - 1) * limit;
+        const offset = (page - 1) * limit;
 
-        const events = await Event.find()
-            .sort({ startTime: 1 })
-            .skip(skip)
-            .limit(limit);
-
-        const total = await Event.countDocuments();
+        const { count, rows: events } = await Event.findAndCountAll({
+            order: [['startTime', 'ASC']],
+            limit,
+            offset
+        });
 
         res.send({
             events,
             currentPage: page,
-            totalPages: Math.ceil(total / limit),
-            totalEvents: total
+            totalPages: Math.ceil(count / limit),
+            totalEvents: count
         });
     } catch (e) {
-        res.status(500).send(e.message);
+        res.status(500).json({ statusCode: 500, message: e.message });
     }
 };
 
@@ -42,67 +40,83 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
     return R * c;
 };
 
+const { geocodeAddress } = require('../utils/geocode');
+
 exports.getNearbyEvents = async (req, res) => { // Nearby events
     try {
-        const { latitude, longitude } = req.user.location;
-        const events = await Event.find({});
+        const user = await User.findByPk(req.user.id);
+        const { latitude, longitude } = user;
+        const { radius } = req.query;
+
+        const searchRadiusKm = radius ? parseFloat(radius) : DEFAULTS.RADIUS_KM;
+
+        const events = await Event.findAll();
 
         const nearbyEvents = events.filter(event => {
             const distance = calculateDistance(
                 latitude, longitude,
-                event.location.latitude, event.location.longitude
+                event.latitude, event.longitude
             );
-            return distance <= DEFAULTS.RADIUS_KM;
+            return distance <= searchRadiusKm;
         });
 
         res.send(nearbyEvents);
     } catch (e) {
-        res.status(500).send(e.message);
+        res.status(500).json({ statusCode: 500, message: e.message });
     }
 };
 
 exports.createEvent = async (req, res) => { // Create event
     try {
-        const { title, description, startTime, endTime, latitude, longitude, address } = req.body;
-        const event = new Event({
+        const { title, description, startTime, endTime, area, city, state, country } = req.body;
+
+        const locationString = `${area}, ${city}, ${state}, ${country}`;
+        const { latitude, longitude } = await geocodeAddress(locationString);
+
+        const event = await Event.create({
             title,
             description,
             startTime,
             endTime,
-            location: { latitude, longitude, address },
-            createdBy: req.user._id
+            latitude,
+            longitude,
+            area,
+            city,
+            state,
+            country,
+            createdById: req.user.id
         });
-        await event.save();
         res.status(201).send(event);
     } catch (e) {
-        res.status(400).send(e.message);
+        res.status(400).json({ statusCode: 400, message: e.message });
     }
 };
 
 // Business rules check
 exports.joinEvent = async (req, res) => { // Join event
     try {
-        const eventToJoin = await Event.findById(req.params.eventId);
-        if (!eventToJoin) return res.status(404).send({ error: ERRORS.EVENT_NOT_FOUND });
+        const eventToJoin = await Event.findByPk(req.params.eventId);
+        if (!eventToJoin) return res.status(404).json({ statusCode: 404, message: ERRORS.EVENT_NOT_FOUND });
 
-        const existingBookings = await Booking.find({ user: req.user._id, status: 'going' }).populate('event');
+        const existingBookings = await Booking.findAll({
+            where: { userId: req.user.id, status: 'going' },
+            include: [{ model: Event, as: 'event' }]
+        });
 
         // No overlaps allowed
         const hasOverlap = existingBookings.some(booking => {
             const bookedEvent = booking.event;
-            // Checks if start and end times intersect with any other booking
             return (eventToJoin.startTime < bookedEvent.endTime && eventToJoin.endTime > bookedEvent.startTime);
         });
 
         if (hasOverlap) {
-            return res.status(400).send({ error: ERRORS.OVERLAP });
+            return res.status(400).json({ statusCode: 400, message: ERRORS.OVERLAP });
         }
 
-        const booking = new Booking({
-            user: req.user._id,
-            event: eventToJoin._id
+        const booking = await Booking.create({
+            userId: req.user.id,
+            eventId: eventToJoin.id
         });
-        await booking.save();
 
         // Send confirmation email
         try {
@@ -118,14 +132,18 @@ exports.joinEvent = async (req, res) => { // Join event
 
         res.status(201).send(booking);
     } catch (e) {
-        res.status(400).send(e.message);
+        res.status(400).json({ statusCode: 400, message: e.message });
     }
 };
 
 exports.getMyEvents = async (req, res) => { // User events
     try {
         const now = new Date();
-        const bookings = await Booking.find({ user: req.user._id }).populate('event').sort({ 'event.startTime': -1 });
+        const bookings = await Booking.findAll({
+            where: { userId: req.user.id },
+            include: [{ model: Event, as: 'event' }],
+            order: [[{ model: Event, as: 'event' }, 'startTime', 'DESC']]
+        });
 
         const past = bookings.filter(b => b.event.endTime < now);
         const current = bookings.filter(b => b.event.startTime <= now && b.event.endTime >= now);
@@ -133,36 +151,42 @@ exports.getMyEvents = async (req, res) => { // User events
 
         res.send({ past, current, future });
     } catch (e) {
-        res.status(500).send(e.message);
+        res.status(500).json({ statusCode: 500, message: e.message });
     }
 };
 
 exports.cancelBooking = async (req, res) => { // Cancel booking
     try {
-        const booking = await Booking.findOne({ _id: req.params.bookingId, user: req.user._id }).populate('event');
-        if (!booking) return res.status(404).send({ error: ERRORS.BOOKING_NOT_FOUND });
+        const booking = await Booking.findOne({
+            where: { id: req.params.bookingId, userId: req.user.id },
+            include: [{ model: Event, as: 'event' }]
+        });
+        if (!booking) return res.status(404).json({ statusCode: 404, message: ERRORS.BOOKING_NOT_FOUND });
 
         const now = new Date();
         const startTime = new Date(booking.event.startTime);
         const hoursDiff = (startTime - now) / (1000 * 60 * 60);
 
         if (hoursDiff < 8) {
-            return res.status(400).send({ error: ERRORS.CANCEL_LIMIT });
+            return res.status(400).json({ statusCode: 400, message: ERRORS.CANCEL_LIMIT });
         }
 
         booking.status = 'canceled';
         await booking.save();
         res.send(booking);
     } catch (e) {
-        res.status(400).send(e.message);
+        res.status(400).json({ statusCode: 400, message: e.message });
     }
 };
 
 exports.getEventParticipants = async (req, res) => { // Admin view
     try {
-        const participants = await Booking.find({ event: req.params.eventId }).populate('user', 'name email');
+        const participants = await Booking.findAll({
+            where: { eventId: req.params.eventId },
+            include: [{ model: User, as: 'user', attributes: ['name', 'email'] }]
+        });
         res.send(participants);
     } catch (e) {
-        res.status(500).send(e.message);
+        res.status(500).json({ statusCode: 500, message: e.message });
     }
 };

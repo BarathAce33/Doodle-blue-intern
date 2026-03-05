@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const { User } = require('../models');
 
 const auth = async (req, res, next) => { // User authentication
     try {
@@ -7,7 +7,7 @@ const auth = async (req, res, next) => { // User authentication
         if (!token) throw new Error();
 
         const decoded = jwt.verify(token, process.env.JWT_SECRET); // Verify token
-        const user = await User.findOne({ _id: decoded._id });
+        const user = await User.findByPk(decoded._id);
 
         if (!user) throw new Error();
 
@@ -26,7 +26,10 @@ const authorize = (roles = []) => { // Role-based access
 
     return (req, res, next) => {
         if (roles.length && !roles.includes(req.user.role)) {
-            return res.status(403).json({ message: 'Forbidden' });
+            return res.status(403).json({
+                statusCode: 403,
+                message: `Forbidden: This action requires one of the following roles: [${roles.join(', ')}]. Your current role is: "${req.user.role}"`
+            });
         }
         next();
     };

@@ -1,16 +1,53 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/db');
 
-const eventSchema = new mongoose.Schema({ // Event details
-    title: { type: String, required: true },
-    description: { type: String, required: true },
-    startTime: { type: Date, required: true },
-    endTime: { type: Date, required: true },
-    location: {
-        latitude: { type: Number, required: true },
-        longitude: { type: Number, required: true },
-        address: { type: String }
+const Event = sequelize.define('Event', {
+    id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true
     },
-    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
-}, { timestamps: true }); // Auto-track creation time
+    title: {
+        type: DataTypes.STRING,
+        allowNull: false
+    },
+    description: {
+        type: DataTypes.TEXT,
+        allowNull: false
+    },
+    startTime: {
+        type: DataTypes.DATE,
+        allowNull: false
+    },
+    endTime: {
+        type: DataTypes.DATE,
+        allowNull: false
+    },
+    // Flattened location fields
+    latitude: {
+        type: DataTypes.DOUBLE,
+        allowNull: false
+    },
+    longitude: {
+        type: DataTypes.DOUBLE,
+        allowNull: false
+    },
+    area: {
+        type: DataTypes.STRING,
+        allowNull: false
+    },
+    city: {
+        type: DataTypes.STRING, allowNull: false
+    },
+    state: {
+        type: DataTypes.STRING,
+        allowNull: false
+    },
+    country: {
+        type: DataTypes.STRING,
+        allowNull: false
+    }
+});
 
-module.exports = mongoose.model('Event', eventSchema);
+// Relationships will be defined in a central place or after all models are loaded
+module.exports = Event;
