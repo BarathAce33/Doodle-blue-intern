@@ -28,6 +28,10 @@ const Todo = sequelize.define('Todo', {
         type: DataTypes.BOOLEAN,
         defaultValue: false,
     },
+    is_notified: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+    },
     user_id: {
         type: DataTypes.INTEGER,
         allowNull: false,

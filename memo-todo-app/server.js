@@ -7,6 +7,7 @@ const authRoutes = require('./src/routes/auth.routes.js');
 const todoRoutes = require('./src/routes/todo.routes.js');
 const memoRoutes = require('./src/routes/memo.routes.js');
 const { errorHandler, notFoundHandler } = require('./src/utils/errorHandler.js');
+const { startCronJobs } = require('./src/utils/cron.js');
 
 // Init
 dotenv.config();
@@ -39,6 +40,7 @@ app.use(errorHandler);
 
 const startServer = async () => {
     await connectDB();
+    startCronJobs();
     app.listen(PORT, () => {
         console.log(`Server is running on port ${PORT}`);
     });
