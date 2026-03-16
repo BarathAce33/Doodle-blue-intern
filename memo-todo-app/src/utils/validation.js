@@ -72,14 +72,26 @@ const createTodoSchema = Joi.object({
     task_name: Joi.string().required().messages({
         'any.required': 'Task name is required'
     }),
-    expiry: Joi.date().iso().optional().messages({
+    expiry: Joi.date().iso().optional().custom((value, helpers) => {
+        const minDate = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
+        if (value < minDate) {
+            return helpers.message('Expiry must be at least 1 hour from now');
+        }
+        return value;
+    }).messages({
         'date.format': 'Expiry must be a valid ISO date'
     }),
 });
 
 const updateTodoSchema = Joi.object({
     task_name: Joi.string().optional(),
-    expiry: Joi.date().iso().optional().messages({
+    expiry: Joi.date().iso().optional().custom((value, helpers) => {
+        const minDate = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
+        if (value < minDate) {
+            return helpers.message('Expiry must be at least 1 hour from now');
+        }
+        return value;
+    }).messages({
         'date.format': 'Expiry must be a valid ISO date'
     }),
     completion_status: Joi.string().valid('PENDING', 'COMPLETED', 'CANCELLED').optional().messages({

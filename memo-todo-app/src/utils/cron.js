@@ -5,8 +5,8 @@ const { User } = require('../models/user.model.js');
 const emailService = require('../services/email.service.js');
 
 const startCronJobs = () => {
-    // Run every minute
-    cron.schedule('* * * * *', async () => {
+    // Run every hour
+    cron.schedule('0 * * * *', async () => {
         try {
             const now = new Date();
             const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000);
