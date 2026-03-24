@@ -1,18 +1,22 @@
-const mongoose = require('mongoose');
-const { Schema } = mongoose;
+import mongoose, { Schema } from 'mongoose';
 
-// request schema
+// request
+export interface IFriendRequest {
+  _id: number;
+  sender: number;
+  receiver: number;
+  status: 'pending' | 'accepted' | 'rejected';
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 const friendRequestSchema = new Schema({
   _id: { type: Number, required: true },
   sender: { type: Number, ref: 'User', required: true },
   receiver: { type: Number, ref: 'User', required: true },
-  status: { 
-    type: String, 
-    enum: ['pending', 'accepted', 'rejected'], 
-    default: 'pending' 
-  }
+  status: { type: String, enum: ['pending', 'accepted', 'rejected'], default: 'pending' }
 }, { timestamps: true });
 
-module.exports = mongoose.model('FriendRequest', friendRequestSchema);
+const FriendRequest = mongoose.model('FriendRequest', friendRequestSchema);
 
-export {};
+export default FriendRequest;

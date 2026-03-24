@@ -1,19 +1,15 @@
-const router = require('express').Router();
-const { sendRequest, getPending, respondToRequest, getFriends } = require('../controllers/friend.controller');
-const { auth } = require('../middlewares/auth.middleware');
-const validate = require('../middlewares/validator');
-const { friendRequestSchema, respondSchema } = require('../middlewares/auth.validation');
+import { Router } from 'express';
+import { sendRequest, getPending, respondToRequest, getFriends } from '../controllers/friend.controller';
+import { auth } from '../middlewares/auth.middleware';
+import validate from '../middlewares/validator';
+import { friendRequestSchema, respondSchema } from '../middlewares/auth.validation';
 
-// Send request
+const router = Router();
+
+// friends
 router.post('/request', auth, validate(friendRequestSchema), sendRequest);
-
-// List pending
 router.get('/pending', auth, getPending);
-
-// List friends
 router.get('/list', auth, getFriends);
-
-// Respond
 router.put('/respond/:senderId', auth, validate(respondSchema), respondToRequest);
 
-module.exports = router;
+export default router;

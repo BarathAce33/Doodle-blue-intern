@@ -1,20 +1,34 @@
-const jwt = require('jsonwebtoken');
+import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
 
-// auth middleware
-exports.auth = (req: any, res: any, next: any) => {
-  const token = req.header('Authorization')?.replace('Bearer ', '');
+// user req
+export interface AuthRequest extends Request {
+  user?: number;
+}
 
-  if (!token) {
-    return res.status(401).json({ status: 401, message: 'No token, access denied' });
+export const auth = (req: AuthRequest, res: Response, next: NextFunction) => {
+  // header
+  const authHeader = req.header('Authorization');
+
+  // check
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ status: 401, message: 'No token' });
   }
 
+  // extract
+  const parts = authHeader.split(' ');
+  if (parts.length !== 2) {
+    return res.status(401).json({ status: 401, message: 'Bad format' });
+  }
+
+  const token = parts[1];
+
+  // verify
   try {
-    const decoded: any = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret') as { id: number };
     req.user = decoded.id; 
     next();
   } catch (err) {
-    res.status(401).json({ status: 401, message: 'Token invalid' });
+    return res.status(401).json({ status: 401, message: 'Bad token' });
   }
 };
-
-export {};

@@ -1,27 +1,24 @@
-// error handler
-const errorHandler = (err: any, req: any, res: any, next: any) => {
-  // json error
+import { Request, Response, NextFunction } from 'express';
+
+const errorHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
+  // json
   if (err instanceof SyntaxError && 'body' in err) {
-    return res.status(400).json({ status: 400, message: 'Invalid JSON format' });
+    return res.status(400).json({ status: 400, message: 'Invalid JSON' });
   }
 
-  // generic
+  // default
   let status = err.status || 500;
   let message = err.message || 'Server error';
 
-  // mongo errors
+  // mongo
   if (err.name === 'ValidationError') status = 400;
   if (err.code === 11000) {
     status = 400;
-    message = 'Duplicate field value entered';
+    message = 'Duplicate value';
   }
 
-  res.status(status).json({
-    status,
-    message
-  });
+  // response
+  return res.status(status).json({ status, message });
 };
 
-module.exports = errorHandler;
-
-export {};
+export default errorHandler;

@@ -1,26 +1,24 @@
-const Joi = require('joi');
+import Joi from 'joi';
 
-// signup val
-exports.signupSchema = Joi.object({
+// signup
+export const signupSchema = Joi.object({
   username: Joi.string().required(),
   email: Joi.string().email().required(),
   password: Joi.string().min(6).required()
 });
 
-// login val
-exports.loginSchema = Joi.object({
+// login
+export const loginSchema = Joi.object({
   email: Joi.string().email().required(),
   password: Joi.string().required()
 });
 
-// request val
-exports.friendRequestSchema = Joi.object({
+// request
+export const friendRequestSchema = Joi.object({
   receiverId: Joi.number().required()
 });
 
-// response val
-exports.respondSchema = Joi.object({
+// respond
+export const respondSchema = Joi.object({
   status: Joi.string().valid('accepted', 'rejected').required()
 });
-
-export {};

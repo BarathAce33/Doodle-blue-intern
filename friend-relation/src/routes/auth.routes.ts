@@ -1,12 +1,12 @@
-const router = require('express').Router();
-const { signup, login } = require('../controllers/auth.controller');
-const validate = require('../middlewares/validator');
-const { signupSchema, loginSchema } = require('../middlewares/auth.validation');
+import { Router } from 'express';
+import { signup, login } from '../controllers/auth.controller';
+import validate from '../middlewares/validator';
+import { signupSchema, loginSchema } from '../middlewares/auth.validation';
 
-// Auth routes
+const router = Router();
+
+// auth
 router.post('/signup', validate(signupSchema), signup);
 router.post('/login', validate(loginSchema), login);
 
-module.exports = router;
-
-export {};
+export default router;

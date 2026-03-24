@@ -1,7 +1,16 @@
-const mongoose = require('mongoose');
-const { Schema } = mongoose;
+import { Schema, model } from 'mongoose';
 
-// user schema
+// user
+export interface IUser {
+  _id: number;
+  username: string;
+  email: string;
+  password: string;
+  friends: number[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 const userSchema = new Schema({
   _id: { type: Number, required: true },
   username: { type: String, required: true, unique: true },
@@ -10,6 +19,6 @@ const userSchema = new Schema({
   friends: [{ type: Number, ref: 'User' }]
 }, { timestamps: true });
 
-module.exports = mongoose.model('User', userSchema);
+const User = model('User', userSchema);
 
-export {};
+export default User;
