@@ -1,15 +1,15 @@
 import { Request, Response, NextFunction } from 'express';
-import { Schema } from 'joi';
 
 // val
-const validate = (schema: Schema) => {
+const validate = (schema: any, source: 'body' | 'query' | 'params' = 'body') => {
   return (req: Request, res: Response, next: NextFunction) => {
-    const { error } = schema.validate(req.body);
+    const { error } = schema.validate(req[source]);
     
     if (error) {
       return res.status(400).json({
         status: 400,
-        message: error.details[0].message
+        message: error.details[0].message,
+        isError: true
       });
     }
     
