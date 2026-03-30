@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-// validator
+// val
 const validate = (schema) => {
     return (req, res, next) => {
         const { error } = schema.validate(req.body);
@@ -13,4 +13,4 @@ const validate = (schema) => {
         next();
     };
 };
-module.exports = validate;
+exports.default = validate;

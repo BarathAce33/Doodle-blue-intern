@@ -8,55 +8,75 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-const FriendRequest = require('../models/friendRequest.model');
-const User = require('../models/user.model');
-const Counter = require('../models/counter.model');
+exports.getUsers = exports.getFriends = exports.respondToRequest = exports.getPending = exports.sendRequest = void 0;
+const friendRequest_model_1 = __importDefault(require("../models/friendRequest.model"));
+const user_model_1 = __importDefault(require("../models/user.model"));
+const counter_model_1 = __importDefault(require("../models/counter.model"));
+const mail_util_1 = require("../utils/mail.util");
 // send
-exports.sendRequest = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+const sendRequest = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { receiverId } = req.body;
         const senderId = req.user;
         // self
         if (senderId === receiverId) {
-            return res.status(400).json({ status: 400, message: 'Cannot request yourself' });
+            return res.status(400).json({ status: 400, message: 'Cannot send request to yourself' });
         }
-        // check
-        const existing = yield FriendRequest.findOne({
+        // exists
+        const existing = yield friendRequest_model_1.default.findOne({
             $or: [
                 { sender: senderId, receiver: receiverId },
                 { sender: receiverId, receiver: senderId }
             ]
         });
         if (existing) {
-            return res.status(400).json({ status: 400, message: 'Request already exists' });
+            return res.status(400).json({ status: 400, message: 'Relationship or request already exists' });
         }
-        // counter
-        const counter = yield Counter.findOneAndUpdate({ id: 'request_id' }, { $inc: { seq: 1 } }, { new: true, upsert: true });
-        // create
-        yield FriendRequest.create({
+        // id
+        const counter = yield counter_model_1.default.findOneAndUpdate({ id: 'request_id' }, { $inc: { seq: 1 } }, { new: true, upsert: true });
+        if (!counter)
+            throw new Error('No counter');
+        // save
+        yield friendRequest_model_1.default.create({
             _id: counter.seq,
             sender: senderId,
             receiver: receiverId
         });
-        res.status(201).json({
-            status: 201,
-            message: 'Friend request sent'
-        });
+        // mail
+        const receiver = yield user_model_1.default.findById(receiverId);
+        if (receiver) {
+            const sender = yield user_model_1.default.findById(senderId);
+            yield (0, mail_util_1.sendEmail)(receiver.email, 'New Friend Request', `User ${sender === null || sender === void 0 ? void 0 : sender.username} sent you a friend request.`);
+        }
+        return res.status(201).json({ status: 201, message: 'Friend request sent' });
     }
     catch (err) {
         next(err);
     }
 });
+exports.sendRequest = sendRequest;
 // pending
-exports.getPending = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+const getPending = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const userId = req.user;
-        const requests = yield FriendRequest.find({ receiver: userId, status: 'pending' })
-            .populate('sender', 'username email');
+        const page = Number(req.query.page) || 1;
+        const limit = Number(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+        // find
+        const requests = yield friendRequest_model_1.default.find({ receiver: userId, status: 'pending' })
+            .populate('sender', 'username email')
+            .skip(skip)
+            .limit(limit);
+        // count
+        const total = yield friendRequest_model_1.default.countDocuments({ receiver: userId, status: 'pending' });
+        // format
         const formatted = requests.map((r) => ({
             requestId: r._id,
-            senderUser: {
+            sender: {
                 userId: r.sender._id,
                 username: r.sender.username,
                 email: r.sender.email
@@ -64,23 +84,26 @@ exports.getPending = (req, res, next) => __awaiter(void 0, void 0, void 0, funct
             status: r.status,
             timestamp: r.createdAt
         }));
-        res.status(200).json({
+        return res.status(200).json({
             status: 200,
-            message: 'Pending requests',
-            data: formatted
+            message: 'Pending list retrieved',
+            data: formatted,
+            pagination: { total, page, limit, pages: Math.ceil(total / limit) }
         });
     }
     catch (err) {
         next(err);
     }
 });
+exports.getPending = getPending;
 // respond
-exports.respondToRequest = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+const respondToRequest = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { status } = req.body;
-        const senderId = req.params.senderId;
+        const senderId = Number(req.params.senderId);
         const userId = req.user;
-        const request = yield FriendRequest.findOne({
+        // find
+        const request = yield friendRequest_model_1.default.findOne({
             sender: senderId,
             receiver: userId,
             status: 'pending'
@@ -88,42 +111,87 @@ exports.respondToRequest = (req, res, next) => __awaiter(void 0, void 0, void 0,
         if (!request) {
             return res.status(404).json({ status: 404, message: 'Request not found' });
         }
+        // update
         request.status = status;
         yield request.save();
+        // social
         if (status === 'accepted') {
-            // both
-            yield User.findByIdAndUpdate(request.sender, { $addToSet: { friends: request.receiver } });
-            yield User.findByIdAndUpdate(request.receiver, { $addToSet: { friends: request.sender } });
+            yield user_model_1.default.findByIdAndUpdate(request.sender, { $addToSet: { friends: request.receiver } });
+            yield user_model_1.default.findByIdAndUpdate(request.receiver, { $addToSet: { friends: request.sender } });
         }
-        res.status(200).json({
-            status: 200,
-            message: `Request ${status}`
-        });
+        return res.status(200).json({ status: 200, message: `Request ${status}` });
     }
     catch (err) {
         next(err);
     }
 });
-// list
-exports.getFriends = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+exports.respondToRequest = respondToRequest;
+// friends
+const getFriends = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const userId = req.user;
-        const user = yield User.findById(userId).populate('friends', 'username email');
+        const page = Number(req.query.page) || 1;
+        const limit = Number(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+        // find
+        const user = yield user_model_1.default.findById(userId).populate({
+            path: 'friends',
+            select: 'username email',
+            options: { skip, limit }
+        });
         if (!user) {
             return res.status(404).json({ status: 404, message: 'User not found' });
         }
+        // count
+        const fullUser = yield user_model_1.default.findById(userId);
+        const total = (fullUser === null || fullUser === void 0 ? void 0 : fullUser.friends.length) || 0;
+        // list
         const formatted = user.friends.map((f) => ({
             userId: f._id,
             username: f.username,
             email: f.email
         }));
-        res.status(200).json({
+        return res.status(200).json({
             status: 200,
-            message: 'Friend list',
-            data: formatted
+            message: 'Friend list retrieved',
+            data: formatted,
+            pagination: { total, page, limit, pages: Math.ceil(total / limit) }
         });
     }
     catch (err) {
         next(err);
     }
 });
+exports.getFriends = getFriends;
+// users
+const getUsers = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const currentUserId = req.user;
+        const page = Number(req.query.page) || 1;
+        const limit = Number(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+        // find
+        const users = yield user_model_1.default.find({ _id: { $ne: currentUserId } })
+            .select('-password')
+            .skip(skip)
+            .limit(limit);
+        // count
+        const total = yield user_model_1.default.countDocuments({ _id: { $ne: currentUserId } });
+        // format
+        const formatted = users.map((u) => ({
+            userId: u._id,
+            username: u.username,
+            email: u.email
+        }));
+        return res.status(200).json({
+            status: 200,
+            message: 'Users retrieved',
+            data: formatted,
+            pagination: { total, page, limit, pages: Math.ceil(total / limit) }
+        });
+    }
+    catch (err) {
+        next(err);
+    }
+});
+exports.getUsers = getUsers;

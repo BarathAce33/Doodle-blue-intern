@@ -12,16 +12,29 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const mongoose_1 = __importDefault(require("mongoose"));
-// connect
-const connectDB = () => __awaiter(void 0, void 0, void 0, function* () {
-    try {
-        const conn = yield mongoose_1.default.connect(process.env.MONGO_URI || '');
-        console.log(`mongo ${conn.connection.host}`);
-    }
-    catch (err) {
-        console.error('db failed');
-        process.exit(1);
+exports.sendEmail = void 0;
+const nodemailer_1 = __importDefault(require("nodemailer"));
+const transporter = nodemailer_1.default.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
     }
 });
-exports.default = connectDB;
+const sendEmail = (to, subject, text) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const info = yield transporter.sendMail({
+            from: process.env.EMAIL_USER,
+            to,
+            subject,
+            text
+        });
+        console.log('Email sent:', info.messageId);
+        return true;
+    }
+    catch (err) {
+        console.error('Mail error:', err);
+        return false;
+    }
+});
+exports.sendEmail = sendEmail;

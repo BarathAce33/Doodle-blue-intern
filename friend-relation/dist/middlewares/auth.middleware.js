@@ -1,19 +1,31 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-const jwt = require('jsonwebtoken');
-// auth middleware
-exports.auth = (req, res, next) => {
-    var _a;
-    const token = (_a = req.header('Authorization')) === null || _a === void 0 ? void 0 : _a.replace('Bearer ', '');
-    if (!token) {
-        return res.status(401).json({ status: 401, message: 'No token, access denied' });
+exports.auth = void 0;
+const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+const auth = (req, res, next) => {
+    // header
+    const authHeader = req.header('Authorization');
+    // check
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ status: 401, message: 'No token' });
     }
+    // extract
+    const parts = authHeader.split(' ');
+    if (parts.length !== 2) {
+        return res.status(401).json({ status: 401, message: 'Bad format' });
+    }
+    const token = parts[1];
+    // verify
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+        const decoded = jsonwebtoken_1.default.verify(token, process.env.JWT_SECRET || 'secret');
         req.user = decoded.id;
         next();
     }
     catch (err) {
-        res.status(401).json({ status: 401, message: 'Token invalid' });
+        return res.status(401).json({ status: 401, message: 'Bad token' });
     }
 };
+exports.auth = auth;

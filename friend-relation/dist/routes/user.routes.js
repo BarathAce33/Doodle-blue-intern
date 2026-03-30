@@ -1,8 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const router = require('express').Router();
-const { getUsers } = require('../controllers/user.controller');
-const { auth } = require('../middlewares/auth.middleware');
-// User list
-router.get('/', auth, getUsers);
-module.exports = router;
+const express_1 = require("express");
+const friend_controller_1 = require("../controllers/friend.controller");
+const auth_middleware_1 = require("../middlewares/auth.middleware");
+const router = (0, express_1.Router)();
+// users
+router.get('/', auth_middleware_1.auth, friend_controller_1.getUsers);
+exports.default = router;
